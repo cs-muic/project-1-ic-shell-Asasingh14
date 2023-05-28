@@ -6,6 +6,9 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define MAX_CMD_BUFFER 255
 
@@ -58,7 +61,34 @@ void process_command(char *buffer)
     }
     else
     {
-        printf("bad command\n");
+        // printf("bad command\n");
+        pid_t pid = fork();
+        if (pid == 0)
+        {
+            // Child process
+            char *command = strtok(buffer, " ");
+            char *args[MAX_CMD_BUFFER];
+            args[0] = command;
+
+            int i = 1;
+            while ((args[i] = strtok(NULL, " ")))
+                i++;
+
+            execvp(command, args);
+            printf("Failed to execute command: %s\n", command);
+            exit(1);
+        }
+        else if (pid < 0)
+        {
+            // Error forking
+            printf("Failed to fork a child process\n");
+        }
+        else
+        {
+            // Parent process
+            int status;
+            waitpid(pid, &status, 0);
+        }
     }
 }
 
@@ -66,7 +96,8 @@ int main(int argc, char *argv[])
 {
     char buffer[MAX_CMD_BUFFER];
 
-    if (argc > 1) { // Script Handle
+    if (argc > 1)
+    { // Script Handle
         FILE *script = fopen(argv[1], "r");
         if (!script)
         {
