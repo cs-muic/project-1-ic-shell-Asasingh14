@@ -9,10 +9,13 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include "signal.h"
 
 #define MAX_CMD_BUFFER 255
 
 char prev_command[MAX_CMD_BUFFER] = ""; // For the previous command !!
+pid_t foreground_pid = -1; 
+int prev_exit_status = 0;
 
 void echo(char *input)
 { // Echo Command
@@ -61,8 +64,11 @@ void process_command(char *buffer)
     }
     else
     {
-        // printf("bad command\n");
-        pid_t pid = fork();
+        // printf("bad command\n"); Not needed Anymore
+        
+        
+        pid_t pid = fork(); //Used to create a new fork
+
         if (pid == 0)
         {
             // Child process
@@ -71,30 +77,60 @@ void process_command(char *buffer)
             args[0] = command;
 
             int i = 1;
-            while ((args[i] = strtok(NULL, " ")))
+            while ((args[i] = strtok(NULL, " "))) //Get args
                 i++;
 
-            execvp(command, args);
+            execvp(command, args); //Execute the command with args
             printf("Failed to execute command: %s\n", command);
-            exit(1);
+            exit(1); //Normal Exit Code
         }
-        else if (pid < 0)
+        else if (pid < 0) 
         {
-            // Error forking
+            // Error Forking
             printf("Failed to fork a child process\n");
         }
         else
         {
             // Parent process
+
+            foreground_pid = pid;
             int status;
             waitpid(pid, &status, 0);
+                        if (WIFSTOPPED(status))
+            {
+                printf("Foreground job suspended\n");
+            }
+            else
+            {
+                prev_exit_status = WEXITSTATUS(status);
+            }
+            foreground_pid = 0; // Reset the foreground process ID
         }
+    }
+}
+
+void handle_sigint(int signum)
+{
+    if (foreground_pid != -1)
+        kill(foreground_pid, SIGINT);
+}
+
+void handle_sigtstp(int signum)
+{
+    if (foreground_pid != -1)
+    {
+        kill(foreground_pid, SIGTSTP);
+        foreground_pid = -1; // Reset foreground PID to indicate no foreground job
     }
 }
 
 int main(int argc, char *argv[])
 {
     char buffer[MAX_CMD_BUFFER];
+
+    signal(SIGINT, handle_sigint);
+    signal(SIGTSTP, handle_sigtstp);
+
 
     if (argc > 1)
     { // Script Handle
