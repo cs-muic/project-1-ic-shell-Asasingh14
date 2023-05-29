@@ -6,15 +6,16 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
+#include "unistd.h"
+#include "sys/types.h"
+#include "sys/wait.h"
 #include "signal.h"
+#include "fcntl.h"
 
 #define MAX_CMD_BUFFER 255
 
 char prev_command[MAX_CMD_BUFFER] = ""; // For the previous command !!
-pid_t foreground_pid = -1; 
+pid_t foreground_pid = -1;
 int prev_exit_status = 0;
 
 void echo(char *input)
@@ -65,9 +66,8 @@ void process_command(char *buffer)
     else
     {
         // printf("bad command\n"); Not needed Anymore
-        
-        
-        pid_t pid = fork(); //Used to create a new fork
+
+        pid_t pid = fork(); // Used to create a new fork
 
         if (pid == 0)
         {
@@ -77,14 +77,60 @@ void process_command(char *buffer)
             args[0] = command;
 
             int i = 1;
-            while ((args[i] = strtok(NULL, " "))) //Get args
+            while ((args[i] = strtok(NULL, " "))) // Get args
                 i++;
 
-            execvp(command, args); //Execute the command with args
+            // Add for Handling I/O Redirection
+            char *redirect_type = NULL;
+            char *file_name = NULL;
+
+            // Look For </>
+            for (int j = 1; j < i; j++)
+            {
+                if (strcmp(args[j], ">") == 0 || strcmp(args[j], "<") == 0)
+                {
+                    redirect_type = args[j];
+                    file_name = args[j+1];
+                    args[j] = NULL;
+                    args[j + 1] = NULL;
+                    break;
+                }
+            }
+
+            if (redirect_type != NULL && file_name != NULL)
+            {
+                int fd;
+                if (strcmp(redirect_type, ">") == 0)
+                {
+                    // Open the file in write-only mode, create if not exists, truncate if exists
+                    fd = open(file_name, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                    if (fd == -1)
+                    {
+                        printf("Failed to open output file: %s\n", file_name);
+                        exit(1);
+                    }
+                    dup2(fd, STDOUT_FILENO); // Redirect stdout to the file
+                }
+                else if (strcmp(redirect_type, "<") == 0)
+                {
+                    // Open the file in read-only mode
+                    fd = open(file_name, O_RDONLY);
+                    if (fd == -1)
+                    {
+                        printf("Failed to open input file: %s\n", file_name);
+                        exit(1);
+                    }
+                    dup2(fd, STDIN_FILENO); // Redirect stdin to the file
+                }
+
+                close(fd); // Close the file descriptor
+            }
+
+            execvp(command, args); // Execute the command with args
             printf("Failed to execute command: %s\n", command);
-            exit(1); //Normal Exit Code
+            exit(1); // Normal Exit Code
         }
-        else if (pid < 0) 
+        else if (pid < 0)
         {
             // Error Forking
             printf("Failed to fork a child process\n");
@@ -96,7 +142,7 @@ void process_command(char *buffer)
             foreground_pid = pid;
             int status;
             waitpid(pid, &status, 0);
-                        if (WIFSTOPPED(status))
+            if (WIFSTOPPED(status))
             {
                 printf("Foreground job suspended\n");
             }
@@ -104,7 +150,7 @@ void process_command(char *buffer)
             {
                 prev_exit_status = WEXITSTATUS(status);
             }
-            foreground_pid = 0; // Reset the foreground process ID
+            foreground_pid = -1; // Reset the foreground process ID
         }
     }
 }
@@ -130,7 +176,6 @@ int main(int argc, char *argv[])
 
     signal(SIGINT, handle_sigint);
     signal(SIGTSTP, handle_sigtstp);
-
 
     if (argc > 1)
     { // Script Handle
