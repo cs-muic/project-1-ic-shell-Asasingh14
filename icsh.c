@@ -1,3 +1,4 @@
+
 /* ICCS227: Project 1: icsh
  * Name: Abhipob Sethi
  * StudentID: 6480192
@@ -13,10 +14,22 @@
 #include "fcntl.h"
 
 #define MAX_CMD_BUFFER 255
+#define MAX_BG_JOBS 10
+
+typedef struct
+{
+    pid_t pid;
+    int job_id;
+    char command[MAX_CMD_BUFFER];
+    int completed;
+    int stopped;
+} BackgroundJob;
 
 char prev_command[MAX_CMD_BUFFER] = ""; // For the previous command !!
 pid_t foreground_pid = -1;
 int prev_exit_status = 0;
+BackgroundJob bg_jobs[MAX_BG_JOBS];
+int num_bg_jobs = 0;
 
 void echo(char *input)
 { // Echo Command
@@ -43,6 +56,100 @@ void exit_shell(int exit_code)
     exit(exit_code);
 }
 
+void list_jobs()
+{ // List Current Jobs
+    printf("Job ID\tPID\tStatus\tCommand\n");
+    for (int i = 0; i < num_bg_jobs; i++)
+    {
+        if (!bg_jobs[i].completed)
+        {
+            int status;
+            pid_t result = waitpid(bg_jobs[i].pid, &status, WNOHANG);
+            if (result == 0)
+            {
+                // Process Running
+                printf("[%d]\t%d\tRunning\t%s\n", bg_jobs[i].job_id, bg_jobs[i].pid, bg_jobs[i].command);
+            }
+            else if (result == -1)
+            {
+                // Error
+                printf("[%d]\t%d\tError\t%s\n", bg_jobs[i].job_id, bg_jobs[i].pid, bg_jobs[i].command);
+            }
+            else
+            {
+                // Process Complete
+                bg_jobs[i].completed = 1;
+                prev_exit_status = WEXITSTATUS(status);
+                printf("[%d]\t%d\tDone\t%s\n", bg_jobs[i].job_id, bg_jobs[i].pid, bg_jobs[i].command);
+            }
+        }
+    }
+}
+
+void foreground_job(int job_id)
+{
+    int job_index = job_id - 1;
+    if (job_index >= 0 && job_index < num_bg_jobs)
+    {
+        pid_t pid = bg_jobs[job_index].pid;
+        if (bg_jobs[job_index].stopped)
+            kill(pid, SIGCONT); // Resume if stopped
+
+        foreground_pid = pid;
+        int status;
+        waitpid(pid, &status, 0);
+        if (WIFSTOPPED(status))
+        {
+            bg_jobs[job_index].stopped = 1;
+            printf("Foreground job suspended\n");
+        }
+        else
+        {
+            bg_jobs[job_index].completed = 1;
+            prev_exit_status = WEXITSTATUS(status);
+        }
+        foreground_pid = -1; // Reset the foreground process ID
+    }
+    else
+    {
+        printf("Invalid job ID\n");
+    }
+}
+
+void background_job(int job_id)
+{ // Execute the suspended job in the background
+    int job_index = job_id - 1;
+    if (job_index >= 0 && job_index < num_bg_jobs)
+    {
+        pid_t pid = bg_jobs[job_index].pid;
+        if (bg_jobs[job_index].stopped)
+        {
+            bg_jobs[job_index].stopped = 0;
+            bg_jobs[job_index].completed = 0;
+            kill(pid, SIGCONT); // Resume if stopped
+            printf("[%d]+  Running\t%s\n", bg_jobs[job_index].job_id, bg_jobs[job_index].command);
+        }
+        else
+        {
+            printf("Job is not stopped\n");
+        }
+    }
+    else
+    {
+        printf("Invalid job ID\n");
+    }
+}
+
+int get_job_id(char *job_id_str)
+{
+    if (strlen(job_id_str) < 2)
+    {
+        return -1;
+    }
+    char *ptr = job_id_str + 1; // Ignore %
+    return atoi(ptr);
+}
+
 void process_command(char *buffer)
 {
     if (strlen(buffer) == 0) // Ignore empty command
@@ -63,9 +170,37 @@ void process_command(char *buffer)
         int exit_code = atoi(buffer + 5) & 0xFF; // Convert to integer and make it 8 bits
         exit_shell(exit_code);
     }
+    else if (strcmp(buffer, "jobs") == 0)
+    {
+        list_jobs();
+    }
+    else if (strncmp(buffer, "fg ", 3) == 0)
+    {
+        int job_id = get_job_id(buffer + 3);
+        if (job_id > 0)
+            foreground_job(job_id);
+        else
+            printf("Invalid job ID\n");
+    }
+    else if (strncmp(buffer, "bg ", 3) == 0)
+    {
+        int job_id = get_job_id(buffer + 3);
+        if (job_id > 0)
+            background_job(job_id);
+        else
+            printf("Invalid job ID\n");
+    }
     else
     {
+
         // printf("bad command\n"); Not needed Anymore
+
+        int background_execution = 0; // Flag to indicate background execution
+        if (buffer[strlen(buffer) - 1] == '&')
+        {
+            buffer[strlen(buffer) - 1] = '\0'; // Remove the '&' symbol
+            background_execution = 1;
+        }
 
         pid_t pid = fork(); // Used to create a new fork
 
@@ -90,7 +225,7 @@ void process_command(char *buffer)
                 if (strcmp(args[j], ">") == 0 || strcmp(args[j], "<") == 0)
                 {
                     redirect_type = args[j];
-                    file_name = args[j+1];
+                    file_name = args[j + 1];
                     args[j] = NULL;
                     args[j + 1] = NULL;
                     break;
@@ -126,7 +261,7 @@ void process_command(char *buffer)
                 close(fd); // Close the file descriptor
             }
 
-            execvp(command, args); // Execute the command with args
+            execvp(args[0], args); // Execute the command with args
             printf("Failed to execute command: %s\n", command);
             exit(1); // Normal Exit Code
         }
@@ -138,19 +273,36 @@ void process_command(char *buffer)
         else
         {
             // Parent process
-
-            foreground_pid = pid;
-            int status;
-            waitpid(pid, &status, 0);
-            if (WIFSTOPPED(status))
+            if (background_execution)
             {
-                printf("Foreground job suspended\n");
+                // Add the command to background jobs list
+                bg_jobs[num_bg_jobs].pid = pid;
+                bg_jobs[num_bg_jobs].job_id = num_bg_jobs + 1;
+                strncpy(bg_jobs[num_bg_jobs].command, buffer, MAX_CMD_BUFFER);
+                bg_jobs[num_bg_jobs].completed = 0;
+                bg_jobs[num_bg_jobs].stopped = 0;
+                num_bg_jobs++;
+
+                printf("[%d] %d\n", num_bg_jobs, pid);
             }
             else
             {
-                prev_exit_status = WEXITSTATUS(status);
+                // Foreground job
+                foreground_pid = pid;
+                int status;
+                waitpid(pid, &status, 0);
+                if (WIFSTOPPED(status))
+                {
+                    int job_index = num_bg_jobs - 1;
+                    bg_jobs[job_index].stopped = 1;
+                    printf("[%d]+  Stopped\t%s\n", bg_jobs[job_index].job_id, bg_jobs[job_index].command);
+                }
+                else
+                {
+                    prev_exit_status = WEXITSTATUS(status);
+                }
+                foreground_pid = -1; // Reset the foreground process ID
             }
-            foreground_pid = -1; // Reset the foreground process ID
         }
     }
 }
