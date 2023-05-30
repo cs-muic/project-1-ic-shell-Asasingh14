@@ -160,11 +160,14 @@ void process_command(char *buffer)
     if (strlen(buffer) == 0) // Ignore empty command
         return;
 
-    else if (strncmp(buffer, "echo ", 5) == 0)
+    if (strcmp(buffer, "!!") != 0) {
+        save_command(buffer);
+    }
+
+    if (strncmp(buffer, "echo ", 5) == 0)
     {                                 // Check if command is 'echo'
         char *echo_text = buffer + 5; // pointer arithmetic to skip 'echo '
         echo(echo_text);
-        save_command(buffer);
     }
     else if (strcmp(buffer, "!!") == 0)
     { // Check if command is '!!'
@@ -185,7 +188,6 @@ void process_command(char *buffer)
     else if (strcmp(buffer, "jobs") == 0)
     {
         list_jobs();
-        save_command(buffer);
     }
     else if (strncmp(buffer, "fg ", 3) == 0)
     {
@@ -194,7 +196,6 @@ void process_command(char *buffer)
             foreground_job(job_id);
         else
             printf("Invalid job ID\n");
-        save_command(buffer);
     }
     else if (strncmp(buffer, "bg ", 3) == 0)
     {
@@ -203,13 +204,12 @@ void process_command(char *buffer)
             background_job(job_id);
         else
             printf("Invalid job ID\n");
-        save_command(buffer);
     }
     else
     {
 
         // printf("bad command\n"); Not needed Anymore
-        save_command(buffer);
+
         int background_execution = 0; // Flag to indicate background execution
         if (buffer[strlen(buffer) - 1] == '&')
         {
