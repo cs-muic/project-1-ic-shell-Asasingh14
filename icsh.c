@@ -25,6 +25,10 @@ typedef struct
     int stopped;
 } BackgroundJob;
 
+ void print_sus_cmd();
+ void print_help();
+ void process_command();
+
 char prev_command[MAX_CMD_BUFFER] = ""; // For the previous command !!
 pid_t foreground_pid = -1;
 int prev_exit_status = 0;
@@ -46,7 +50,8 @@ void repeat_command()
     if (strlen(prev_command) > 0)
     {
         printf("%s\n", prev_command);
-        echo(prev_command + 5); // we skip "echo " part here
+        // echo(prev_command + 5); // we skip "echo " part here
+        process_command(prev_command);
     }
 }
 
@@ -170,9 +175,17 @@ void process_command(char *buffer)
         int exit_code = atoi(buffer + 5) & 0xFF; // Convert to integer and make it 8 bits
         exit_shell(exit_code);
     }
+    //Add extra features
+    else if (strcmp(buffer, "sus") == 0) {
+        print_sus_cmd();
+    }
+    else if (strcmp(buffer, "help") == 0) {
+        print_help();
+    }
     else if (strcmp(buffer, "jobs") == 0)
     {
         list_jobs();
+        save_command(buffer);
     }
     else if (strncmp(buffer, "fg ", 3) == 0)
     {
@@ -181,6 +194,7 @@ void process_command(char *buffer)
             foreground_job(job_id);
         else
             printf("Invalid job ID\n");
+        save_command(buffer);
     }
     else if (strncmp(buffer, "bg ", 3) == 0)
     {
@@ -189,12 +203,13 @@ void process_command(char *buffer)
             background_job(job_id);
         else
             printf("Invalid job ID\n");
+        save_command(buffer);
     }
     else
     {
 
         // printf("bad command\n"); Not needed Anymore
-
+        save_command(buffer);
         int background_execution = 0; // Flag to indicate background execution
         if (buffer[strlen(buffer) - 1] == '&')
         {
@@ -307,6 +322,48 @@ void process_command(char *buffer)
     }
 }
 
+void print_sus_cmd()
+{
+    printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⣴⣆⣠⣤⠀⠀⠀⠀⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣻⣿⣯⣘⠹⣧⣤⡀⠀⠀⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠛⠿⢿⣿⣷⣾⣯⠉⠀⠀⠀⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⣿⠜⣿⡍⠀⠀⠀⠀⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⣿⠁⠀⠘⣿⣆⠀⠀⠀⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⡟⠃⡄⠀⠘⢿⣆⠀⠀⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⣿⣁⣋⣈ ⣤⣮⣿⣧⡀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣤⣤⣤⣤⣤⣶⣦⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣿⡿⠛⠉⠙⠛⠛⠛⠛⠻⢿⣿⣷⣤⡀⠀⠀⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⠋⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⠈⢻⣿⣿⡄⠀⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⣸⣿⡏⠀⠀⠀⣠⣶⣾⣿⣿⣿⠿⠿⠿⢿⣿⣿⣿⣄⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⣿⣿⠁⠀⠀⢰⣿⣿⣯⠁⠀⠀⠀⠀⠀⠀⠀⠈⠙⢿⣷⡄⠀\n");
+    printf("⠀⠀⣀⣤⣴⣶⣶⣿⡟⠀⠀⠀⢸⣿⣿⣿⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣷⠀\n");
+    printf("⠀⢰⣿⡟⠋⠉⣹⣿⡇⠀⠀⠀⠘⣿⣿⣿⣿⣷⣦⣤⣤⣤⣶⣶⣶⣶⣿⣿⣿⠀\n");
+    printf("⠀⢸⣿⡇⠀⠀⣿⣿⡇⠀⠀⠀⠀⠹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠃⠀\n");
+    printf("⠀⣸⣿⡇⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠉⠻⠿⣿⣿⣿⣿⡿⠿⠿⠛⢻⣿⡇⠀⠀\n");
+    printf("⠀⣿⣿⠁⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣧⠀⠀\n");
+    printf("⠀⣿⣿⠀⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⠀⠀\n");
+    printf("⠀⣿⣿⠀⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⠀⠀\n");
+    printf("⠀⢿⣿⡆⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⠃⠀⠀\n");
+    printf("⠀⠸⣿⣧⡀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⠃⠀⠀\n");
+    printf("⠀⠀⠛⢿⣿⣿⣿⣿⣇⠀⠀⠀⠀⠀⣰⣿⣿⣷⣶⣶⣶⣶⠶⠀⢠⣿⣿⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⣿⣿⡇⠀⣽⣿⡏⠁⠀⠀⢸⣿⡇⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⣿⣿⡇⠀⢹⣿⡆⠀⠀⠀⣸⣿⠇⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⢿⣿⣦⣄⣀⣠⣴⣿⣿⠁⠀⠈⠻⣿⣿⣿⣿⡿⠏⠀⠀⠀⠀\n");
+    printf("⠀⠀⠀⠀⠀⠀⠀⠈⠛⠻⠿⠿⠿⠿⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+}
+
+void print_help() {
+    printf("Available commands:\n");
+    printf("- echo [text]: Print the provided text.\n");
+    printf("- !!: Repeat the previous command.\n");
+    printf("- exit [code]: Exit the shell with an optional exit code.\n");
+    printf("- jobs: List current background jobs.\n");
+    printf("- fg [job_id]: Bring a background job to the foreground.\n");
+    printf("- bg [job_id]: Resume a suspended background job.\n");
+    printf("- sus: Try it if you Dare.\n");
+    printf("- help: Display this help message.\n");
+}
+
 void handle_sigint(int signum)
 {
     if (foreground_pid != -1)
@@ -326,8 +383,17 @@ int main(int argc, char *argv[])
 {
     char buffer[MAX_CMD_BUFFER];
 
-    signal(SIGINT, handle_sigint);
-    signal(SIGTSTP, handle_sigtstp);
+    // Ignore the error lines
+    // Minor signal handling fixes
+    struct sigaction sigint_action, sigtstp_action;
+    memset(&sigint_action, 0, sizeof(struct sigaction));
+    memset(&sigtstp_action, 0, sizeof(struct sigaction));
+
+    sigint_action.sa_handler = handle_sigint;
+    sigaction(SIGINT, &sigint_action, NULL);
+
+    sigtstp_action.sa_handler = handle_sigtstp;
+    sigaction(SIGTSTP, &sigtstp_action, NULL);
 
     if (argc > 1)
     { // Script Handle
