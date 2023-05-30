@@ -360,8 +360,10 @@ void print_help() {
     printf("- jobs: List current background jobs.\n");
     printf("- fg [job_id]: Bring a background job to the foreground.\n");
     printf("- bg [job_id]: Resume a suspended background job.\n");
+    printf("- ::!! EXTRA COMMANDS BELOW !!::\n");
     printf("- sus: Try it if you Dare.\n");
     printf("- help: Display this help message.\n");
+    //printf(" ");
 }
 
 void handle_sigint(int signum)
@@ -414,6 +416,7 @@ int main(int argc, char *argv[])
     }
     else
     {
+        print_help();
         while (1)
         {
             printf("icsh $ ");
