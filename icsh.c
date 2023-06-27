@@ -25,9 +25,9 @@ typedef struct
     int stopped;
 } BackgroundJob;
 
- void print_sus_cmd();
- void print_help();
- void process_command();
+void print_sus_cmd();
+void print_help();
+void process_command();
 
 char prev_command[MAX_CMD_BUFFER] = ""; // For the previous command !!
 pid_t foreground_pid = -1;
@@ -155,12 +155,117 @@ int get_job_id(char *job_id_str)
     return atoi(ptr);
 }
 
+void add_shortcut(char *shortcut)
+{
+    FILE *file = fopen("shortcut.txt", "a"); // Open file in append mode
+    if (file == NULL)
+    {
+        printf("Failed to open shortcut file\n");
+        return;
+    }
+
+    char *shortcut_name = strtok(shortcut, " ");
+    char *command = strtok(NULL, "");
+
+    fprintf(file, "%s %s\n", shortcut_name, command); // Write shortcut and command
+    fclose(file);                                     // Close the file
+}
+
+void remove_shortcut(char *shortcut)
+{
+    FILE *file = fopen("shortcut.txt", "r"); // Open file in read mode
+    if (file == NULL)
+    {
+        printf("Failed to open shortcut file\n");
+        return;
+    }
+
+    FILE *temp = fopen("temp.txt", "w"); // Temporary file to write to
+    if (temp == NULL)
+    {
+        printf("Failed to open temp file\n");
+        return;
+    }
+
+    char line[1024];
+    while (fgets(line, sizeof(line), file))
+    {
+        char *existing_shortcut = strtok(line, " "); // Get the shortcut from the line
+        if (strcmp(existing_shortcut, shortcut) != 0)
+        {
+            fputs(line, temp); // Write the line to temp file if it's not the shortcut to remove
+        }
+    }
+
+    fclose(file); // Close the files
+    fclose(temp);
+
+    remove("shortcut.txt");             // Remove original file
+    rename("temp.txt", "shortcut.txt"); // Rename temporary file as original file
+}
+
+void list_shortcuts()
+{
+    FILE *file = fopen("shortcut.txt", "r"); // Open file in read mode
+    if (file == NULL)
+    {
+        printf("Failed to open shortcut file\n");
+        return;
+    }
+
+    char line[1024];
+    while (fgets(line, sizeof(line), file))
+    {
+        printf("%s", line); // Print each line
+    }
+
+    fclose(file); // Close the file
+}
+
+char *get_command_from_shortcut(char *shortcut)
+{
+    FILE *file = fopen("shortcut.txt", "r"); // Open file in read mode
+    if (file == NULL)
+    {
+        printf("Failed to open shortcut file\n");
+        return NULL;
+    }
+
+    char line[1024];
+    while (fgets(line, sizeof(line), file))
+    {
+        char *existing_shortcut = strtok(line, " "); // Get the shortcut from the line
+        if (strcmp(existing_shortcut, shortcut) == 0)
+        {
+            fclose(file);              // Close the file
+            return strtok(NULL, "\n"); // Return the command (remainder of the line)
+        }
+    }
+
+    fclose(file); // Close the file
+    return NULL;  // If the shortcut was not found
+}
+
+void execute_shortcut(char *shortcut)
+{
+    char *command = get_command_from_shortcut(shortcut);
+    if (command != NULL)
+    {
+        process_command(command);
+    }
+    else
+    {
+        printf("Invalid shortcut\n");
+    }
+}
+
 void process_command(char *buffer)
 {
     if (strlen(buffer) == 0) // Ignore empty command
         return;
 
-    if (strcmp(buffer, "!!") != 0) {
+    if (strcmp(buffer, "!!") != 0)
+    {
         save_command(buffer);
     }
 
@@ -178,12 +283,36 @@ void process_command(char *buffer)
         int exit_code = atoi(buffer + 5) & 0xFF; // Convert to integer and make it 8 bits
         exit_shell(exit_code);
     }
-    //Add extra features
-    else if (strcmp(buffer, "sus") == 0) {
+    // Add extra features
+    else if (strcmp(buffer, "sus") == 0)
+    {
         print_sus_cmd();
     }
-    else if (strcmp(buffer, "help") == 0) {
+    else if (strcmp(buffer, "help") == 0)
+    {
         print_help();
+    }
+    else if (strncmp(buffer, "sc-", 3) == 0)
+    {
+        char *command = strtok(buffer + 3, " "); // Remove the "sc-" prefix and get the command
+
+        if (strcmp(command, "add") == 0)
+        {
+            add_shortcut(strtok(NULL, ""));
+        }
+        else if (strcmp(command, "remove") == 0)
+        {
+            remove_shortcut(strtok(NULL, ""));
+        }
+        else if (strcmp(command, "help") == 0)
+        {
+            list_shortcuts();
+        }
+        else
+        {
+            // If none of the above conditions matched, it's a shortcut execution
+            execute_shortcut(command);
+        }
     }
     else if (strcmp(buffer, "jobs") == 0)
     {
@@ -352,7 +481,8 @@ void print_sus_cmd()
     printf("⠀⠀⠀⠀⠀⠀⠀⠈⠛⠻⠿⠿⠿⠿⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
 }
 
-void print_help() {
+void print_help()
+{
     printf("Available commands:\n");
     printf("- echo [text]: Print the provided text.\n");
     printf("- !!: Repeat the previous command.\n");
@@ -363,8 +493,13 @@ void print_help() {
     printf("- ::!! EXTRA COMMANDS BELOW !!::\n");
     printf("- sus: Try it if you Dare.\n");
     printf("- help: Display this help message.\n");
-    //printf(" ");
+    printf("- sc-add [shortcut] [command]: Add a new shortcut for a command.\n");
+    printf("- sc-remove [shortcut]: Remove an existing shortcut.\n");
+    printf("- sc-help: List all available shortcuts.\n");
+    printf("- sc-[shortcut]: Execute the command associated with a shortcut.\n");
+    printf("  Example shortcut format in shortcut.txt file: [shortcut] [command]\n");
 }
+
 
 void handle_sigint(int signum)
 {

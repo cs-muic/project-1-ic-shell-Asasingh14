@@ -1,0 +1,10 @@
+s1 ls -lt
+s2 find . -name "*.txt"
+s3 uname -a
+s4 date +"%d-%m-%Y %T"
+s5 top
+s6 ifconfig -a
+s7 nethogs
+s8 find . -name "*.c" | xargs wc -l
+s9 tail -100 /var/log/syslog
+s10 ps aux --sort=-%mem | head -n 6
